@@ -749,6 +749,84 @@ if (typeof(TrimPath) == 'undefined')
                         el.appendChild(doc.createTextNode(elementText));
                     }
                 },
+                hasTitaniumDb : function() {
+                    return (Titanium != null && 
+                            Titanium.Database != null);
+                },
+                createTitaniumDb : function(spaceKey, userKey, appKey) {
+                    if (env.hasTitaniumDb() == false)
+                        return null;
+
+                    try { 
+                        var dbName = [ (spaceKey || 'space'), (userKey || 'user'), (appKey || 'app') ].join('-');
+
+                        var db = Titanium.Database.install(dbName + '.db', dbName);
+
+                        var executeSql = function(sql, args) {
+                            console.debug('SQL: ' + sql + '; ' + (args || ''));
+
+                            try {
+                                if (args != null)
+                                    return db.execute(sql, args);
+                                else
+                                    return db.execute(sql);
+                            } catch (e) {
+                                // e is not a real error, so we can't just let it bubble up -- it won't 
+                                // display in error uis correctly. So we basically convert it to a real 
+                                // error.
+                                throw new Error("Error executing SQL: " + sql + ". Error was: " + e.message);
+                            }
+                        }
+
+                        var conn = {
+                            execute : function(sql, args) {
+                                var rs = executeSql(sql, args);
+                                if (rs != null)
+                                    rs.close();
+                            },                       
+                            executeToRecords : function(sql, args) {
+                                var rv = [];
+                                var rs = executeSql(sql, args);
+                                try {
+                                    if (rs != null && 
+                                        rs.isValidRow()) {
+                                        var cols = rs.fieldCount();
+                                        var colNames = [];
+                                        for (var i = 0; i < cols; i++)
+                                            colNames.push(rs.fieldName(i));
+    
+                                        while (rs.isValidRow()) {
+                                            var r = {};
+                                            for (var i = 0; i < cols; i++)
+                                                r[colNames[i]] = rs.field(i);
+    
+                                            rv.push(r);
+                                            rs.next();
+                                        }
+                                    }
+                                } catch (e) {
+                                    throw e;
+                                } finally {
+                                    if (rs != null)
+                                        rs.close();
+                                }
+                                return rv;
+                            },
+                            recordChanged : function(tableName, id, op) {
+                                executeSql('INSERT OR REPLACE INTO changes_' + tableName + 
+                                             ' (id, op) VALUES (?, ?)', [ id, op ]);
+                            }
+                        }
+
+                        return junctionUtil.createDbObj(conn, 
+                            { name     : 'titanium', 
+                              type     : 'sqlite3', 
+                              persists : true }, 
+                            true);
+                    } catch (e) {
+                    }
+                    return null;
+                },
                 hasGears : function() {
                     return (window.google != null && 
                             google.gears != null &&
