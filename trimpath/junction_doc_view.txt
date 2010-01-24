@@ -1,0 +1,69 @@
+About: web-MVC View
+
+The View in the web Model-Controller-View (web-MVC) design renders a response HTML page, based on input it receives from a Controller.  The Junction system
+provides a template rendering system to define Views.  The system
+allows two different template formats:
+
+- JavaScript Templates (JST) - a FreeMarker/Velocity inspired template tag
+markup syntax.
+- EcmaScript Templates (EST) - a template tag syntax similar to Ruby ERb (rhtml)
+or JSP/ASP syntax.
+
+For developers already familiar with Ruby ERb/rhtml or JSP/ASP tag syntax,
+the EST format is the easiest to learn and use.
+
+View Template Files:
+
+View templates are stored under code/app/views/[controllerName] directories
+For example...
+
+> code/app/views/
+>            task/
+>              index.est
+>              show.est
+>              edit.est
+>            project/
+>              index.jst
+>              show.jst
+>              edit.jst
+
+Above, the View templates for the task Controller are EST files.  And, the View 
+templates for the project Controller are JST files.  Usually, such 
+mixing-and-matching between different template tag markup syntaxes is 
+rare, where application developers instead usually choose just one tag 
+markup syntax and stick with it.
+
+Rendering Templates:
+
+View templates are rendered under the control of the Controller,
+either using the explicit renderXxxx() family of methods, or
+letting the Junction system choose the template by default that
+has the same filename base as the actionName.
+
+Junction automatically searches for a *.jst and *.est file
+for the template name, so you do not specify the filename suffix.
+For example, use 'task/show' instead of 'task.show.est'.
+
+Rendering Context:
+
+The response (or res) hash/map object is used as the context scope
+of View template rendering.  For example, any objects or functions 
+placed into the res hash/map may be referred to directly in the
+View template.  For example, if Controller code looks like...
+
+> TaskController.prototype.show = function(req, res) {
+>    res.task = Task.findActive(req.objId);
+>    res.now  = new Date();
+> }
+
+Then, the View template task/show may refer directly to the task and now
+values.  For example, code/app/views/task/show.est may have...
+
+> The Task name: <%= task.name %>.
+> Current time is now: <%= now %>
+
+Also, any function or API available on the res object is callable
+from the View template.  For example...
+
+> <%= linkTo('Home', 'home', 'index') %>
+

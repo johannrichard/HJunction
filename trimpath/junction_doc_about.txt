@@ -1,0 +1,58 @@
+About: About TrimPath Junction
+  Junction is a Model-View-Controller framework for
+  developing offline capable, road-warrior friendly web applications, 
+  using JavaScript, HTML and CSS as the main application development languages.  
+
+Features:
+- *High developer productivity* - Junction follows the popular 
+  _conventions-over-configuration_ philosophy and dynamic
+  web-MVC (Model View Controller) design pioneered by
+  the Ruby on Rails application framework.  You can 
+  consider Junction to be a clone and riff of the Ruby on Rails 
+  framework into JavaScript.
+- *Fealty to web standards* - Junction is meant for developers who 
+  have invested into using web standards like HTML, CSS and JavaScript.
+  You can leverage all your skills in those important technologies
+  when using Junction.  And, if you want to use extra technologies
+  and libraries like 
+  Prototype/Scriptaculous/jQuery/Dojo/Mochi/Moo/Base/Ajax/Flash/etc, 
+  Junction lets you go right ahead and make your web pages 
+  shine with your favorite tech.
+- *Multiple runtime options* - 
+  A web application written using Junction can be run 
+  on the server-side in a Rhino-based web application server.
+  Or, a Junction-based web application can be run on
+  the client-side, hosted within a web page environment, using a 
+  browser-local RDBMS to generate pages entirely within the 
+  client web browser, without needing to contact a server.
+  As a developer, you can create a single application
+  codebase using Junction that can run in either or both of 
+  these scenarios.
+- *Banish conditional code* - As one example, Junction automatically 
+  detects if end-users have optional web browser plug-ins 
+  like Google Gears installed, and will leverage the Gears 
+  client-side RDBMS if available.  Otherwise, Junction 
+  automatically downgrades to a simple memory-only 
+  SQL database, letting your application code 
+  remain free and clear of conditional environment checking logic.
+- *Code and database synchronizaton* - Junction supports an
+  application codebase updating facility, a database schema 
+  migration facility, and a simple database-level 
+  record synchronization facility.  Junction aims to ease
+  the common 80/20 of application synchronization needs.
+- *Responsive UI's* - When hosted in a browser, a Junction-based
+  application feels extra snappy, since it can consult with a local
+  fast cache of data to display response pages or page 
+  fragments immediately to users.  
+- *And more* - Check out the documentation for more of what Junction 
+  can do for you.
+
+Copyright:
+  copyright (c) 2005, 2006, 2007 Steve Yen, TrimPath.
+
+Release:
+  See trimpath/junction.js
+
+License:
+  dual licensed GNU General Public License 2.0 and 
+                Apache Public License 2.0

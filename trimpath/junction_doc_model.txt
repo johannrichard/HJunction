@@ -1,0 +1,234 @@
+About: web-MVC Model
+
+The Model in the web Model-View-Controller (web-MVC) design provides object-relational access to data stored in a relational database management system (RDBMS).
+The Active Record pattern of object-relationsal mapping is
+followed, where each database table is mapped to one JavaScript Model class.
+
+On the JavaScript side, a Model is just a JavaScript function 
+(sometimes called constructor function).  
+
+Each Model is contained in its own separate file, under the 
+/app/models/[modelName].js naming pattern.  For example, 
+/app/models/invoice.js might contain...
+
+> Invoice = function() {}
+>
+> modelInit('Invoice');
+>
+> Invoice.belongs_to('Customer');
+> Invoice.belongs_to('SalesRep');
+> Invoice.has_many('InvoiceLines');
+
+Naming Conventions:
+
+By convention, the name of a Model function is capitalized and singular. 
+For example, Invoice and InvoiceLine.  By convention, the name of a 
+Model is the same as its corresponding database table name.
+
+The corresponding code files for a Model
+are not capitalized.  For example /app/models/invoice.js and 
+/app/models/invoiceLine.js.
+
+Programmers should use the global variable programming idiom as show above, rather than private variable idiom, so that the Junction system can easily reload code automatically as it's changed.  Otherwise, development will be horribly 
+unproductive, preventing a quick edit-refreshPage-view-debug cycle.  
+
+For example, use the following coding style when defining a Model
+function/constructor...
+> InvoiceLine = function() {} // Correct.
+instead of...
+> function InvoiceLine() {} // Wrong, won't reload automatically.
+and instead of...
+> var InvoiceLine = function() {} // Wrong, won't reload automatically.
+
+Class Methods:
+
+Class methods, also known as class static methods, can be defined
+on the Model function as easily.  For example...
+
+> Invoice = function() {}
+>
+> modelInit('Invoice');
+>
+> Invoice.findByCustomer = function(customerId) {
+>     return Invoice.findActive('all', { 
+>         conditions: [ 'Invoice.customer_id = ?', customerId ] });
+> }
+>
+> // Now, you can call...
+> // var invoices = Invoice.findByCustomer(123);
+
+Instance Methods:
+
+Instance methods are defined by using the prototype feature of
+the JavaScript language.  For example..
+> Invoice = function() {}
+>
+> Invoice.prototype.markAsClosed = function() {
+>     if (this.status == 'closed')
+>         throw new Error('Invoice already closed: ' + this.id);
+>     this.status = 'closed';
+> }
+>
+> // Now, on an Invoice instance, you can call...
+> // invoice.markAsClosed();
+
+Alternatively, if you want to use a private-variable-friendly idiom
+for defining Model methods, you can...
+
+> Invoice = function() {
+>   // Inside the constructor function, we can define private variables...
+>
+>   var self = this;                    // A private, transient instance var.
+>   var invoiceSecretEncryptKey = null; // A private, transient instance var.
+>
+>   // The above are transient, not-persistent.
+>
+>   this.setSEKey = function(key) {
+>       invoiceSecretEncrypKey = key;
+>   }
+>
+>   this.signAndApprove = function() {
+>     this.signed = true;
+>     this.signature = encrypt(invoiceSecretEncryptKey, ...);
+>     this.status = 'approved';
+>   }
+> }
+
+Metadata and modelInit:
+
+In the top code example, you may have seen the call to the modelInit() function.
+The modelInit() function decorates a function/constructor with
+class methods and instance methods that turn the function/constructor
+into an actual Model class.
+
+> Invoice = function() {}
+>
+> modelInit('Invoice');
+> modelInit('Invoice');
+> modelInit('Invoice'); // The modelInit() call is idempotent.
+>
+> // Now, you can call the extra class methods on Invoice.
+> // e.g., var invoices = Invoice.find('all');
+
+After calling modelInit(), you can now use Model function class methods
+to describe useful information about your Model to the Junction system.
+For example...
+
+> Invoice = function() {}
+>
+> modelInit('Invoice');
+>
+> Invoice.belongsTo('Customer');
+> Invoice.belongsTo('SalesRep');
+> Invoice.hasMany('InvoiceLines');
+
+The calls made above on the Model function, such as belongsTo() and hasMany(),
+decorate the Model with even more class methods and instance methods.
+For example, you can declare Model to Model relationships and
+field/column validations using these decoration methods.
+Please see the modelInit() API reference documentation for more
+information on these Model metadata decorations.
+
+Creating Model Instances:
+
+Model instances are created by using the Model.newInstance() method, 
+rather than directly using JavaScript's new operator.  For example...
+
+> var invoice = Invoice.newInstance();
+> // invoice.created_at != null;
+>
+> var invoiceWrong = new Invoice();
+> // invoice.created_at == null;
+
+Model Fields/Columns:
+
+By convention, column names, or Model field/property names, are
+lowercase, using underscore ('_') characters to separate words.
+For example, parent_folder_id, created_at, updated_at, title.
+
+Migrations:
+
+In the Junction system, the way to create database tables and
+modify the database schema over time (adding columns, adding
+more tables) is called migrations.
+Each migration is stored as a separate script file under the
+code/db/migrate directory.  A migration file follows a naming
+convention of NNNNN_some_description.js.  For example...
+
+> code/
+>   db/
+>     migrate/
+>       0001_initial_schema.js
+>       0002_add_internationalization.js
+>       0003_add_promotions_coupons.js
+>       0004_tagging.js
+
+The Junction system will apply the above scripts in sorted order
+during a database migration.  In the above example, that would bring 
+the database schema to version 4.  Database migrations are automatically applied by the 
+Junction system to the client and server-side RDBMS.
+
+Each migration file can use a simple declarative, JSON-like syntax (called 'def') to
+add new database tables, columns, and indexes.  For example...
+
+> { def: [
+>     [ 'standard_table', 'Task', 
+>       [ 'name',         'varchar(100)' ],
+>       [ 'notes',        'varchar(4000)' ],
+>       [ 'project_id',   'integer' ],
+>       [ 'completed_at', 'datetime' ] ],
+>     [ 'standard_table', 'Project', 
+>       [ 'name',         'varchar(100)' ],
+>       [ 'notes',        'varchar(4000)' ],
+>       [ 'due_at',       'datetime' ],
+>       [ 'completed_at', 'datetime' ],
+>       [ 'color',        'varchar(100)' ] ]
+>   ]
+> }
+
+Each migration file may also define optional 'up' and 'down' functions,
+which can be used in addition to or in-lieu of the 'def' declarative syntax.  
+For example, the previous def example is equivalent to 
+the following up() and down() functions which explicitly call 
+the DDL methods...
+
+> { up: function() {
+>     createStandardTable('Task', 
+>       column('name',         'varchar(100)'),
+>       column('notes',        'varchar(4000)'),
+>       column('project_id',   'integer'),
+>       column('completed_at', 'datetime')
+>     );
+>     createStandardTable('Project', 
+>       column('name',         'varchar(100)'),
+>       column('notes',        'varchar(4000)'),
+>       column('due_at',       'datetime'),
+>       column('completed_at', 'datetime'),
+>       column('color',        'varchar(100)')
+>     );
+>   },
+>   down: function() {
+>     dropTable('Task');
+>     dropTable('Project');
+>   }
+> }
+
+In the above script, the up function creates two tables, Task and Project.
+The down function drops those two tables, providing a reverse or
+undo of the up function.  
+
+The above script uses the createStandardTable() function, which
+creates additional synchronization tracking columns on the
+Task and Project tables.  So, Task and Project records will
+be synchronized by Junction between server and client RDBMS.
+
+When the Junction system invokes the up and down functions
+of a migration step, the Junction system may not be fully loaded yet.
+So, while it's safe to call createStandardTable()/dropTable()
+and other migration API functions from your up/down functions, 
+calling other Junction API functions may not work.  For example, 
+calling Task.find() during the up or down function will probably fail, 
+because the Task Model probably has not been initialized yet.  
+However, calling TrimPath.junction.dbExecute(), which is a lower-level
+function, to invoke straight SQL is allowed during your up/down functions.
+

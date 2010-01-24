@@ -1,0 +1,101 @@
+About: Translations
+
+The Junction framework provides a simple facility for translating 
+your application's response pages and output.  Junction always defaults
+to the UTF-8 charset.
+
+Developers may call the res.setLocale() method to set a locale string
+for every request.  This is often done in a beforeFilter function that 
+you register with Junction, where Junction will invoke your registered
+filter function before invoking the Controller's action method.  
+
+For example, here is a common type of filter function that
+calls res.setLocale() using either a request parameter,
+or a session value, or a default locale value...
+
+> setLocaleFilter = function(controller, req, res) {
+>     var defaultLocale = 'en';
+>     var locale = req.session.locale = 
+>         req.locale || req.session.locale || defaultLocale;
+>     try {
+>         res.setLocale(locale);
+>     } catch (ex) {
+>         res.setLocale(defaultLocale);
+>     }
+> }
+
+You can register such a function as a 'before' request filter
+by calling the beforeFilter() Junction API call...
+
+> ForumController = function() {}
+> beforeFilter(ForumController, setLocaleFilter);
+
+> UserController = function() {}
+> beforeFilter(UserController, setLocaleFilter);
+
+Translating Entire View Templates:
+
+Your View templates may be named following a templateName[.locale].[est|jst] pattern,
+where the locale is optionally part of the file name suffix.  The
+Junction system will load the right template depending on the current
+locale that was set using res.setLocale().  For example, some
+possible template file paths might be...
+
+- code/app/views/forum/show.es.est
+- code/app/views/forum/show.de.est
+- code/app/views/forum/show.est // This is the default template if Junction cannot find a matching locale.
+
+Translating Individual Strings:
+
+Alternatively, in your View template, you may have individual 
+strings translated using the t() function.  For example...
+
+> <%= t('Welcome') %> <%= user.name %>
+
+The t() function is only available in View templates, and is
+accessible to the controller code via res.t().
+
+Junction also provides a String.prototype.t() function, so
+that you can translate an individual string anywhere.  It's
+usage is...
+
+> var holaString = "Hello".t()
+
+Translation Files:
+
+Developers can provide translation *.js files under the code/translations 
+directory, one for each locale string.  For example, some file names might be...
+
+- code/translations/es.js
+- code/translations/de.js
+
+The contents of a translations file, such as code/translations/es.js, looks like...
+
+> TRANSLATIONS.es = {
+>   'Welcome' : 'Bienvenido',
+>   'hello'   : 'hola'
+> }
+
+And code/translations/de.js might contain...
+
+> TRANSLATIONS.de = {
+>   'Welcome' : 'Willkommen',
+>   'hello'   : 'guten tag'
+> }
+
+At runtime, depending the setting of the current res.setLocale() string,
+the correct translation .js file is loaded by the Junction system.  
+
+Any string that is not found within the TRANSLATIONS map will 
+be returned by the t() function as-is.  For example, given
+the above translation files, calling...
+
+> <h3> <%= t('Goodbye, you are now logged out.') %> </h3>
+
+Will produce...
+
+> <h4> Goodbye, you are now logged out. </h3>
+
+Since the "Goodbye..." string has no translation defined yet.
+
+Also, "Goodbye".t() will return "Goodbye".

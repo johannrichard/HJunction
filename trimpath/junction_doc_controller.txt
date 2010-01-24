@@ -1,0 +1,124 @@
+About: web-MVC Controller
+
+The Controller in the web Model-View-Controller (web-MVC) design is responsible for answering to web requests.  It orchestrates a response by calling on the Model objects and rendering a View template.
+
+A Controller is just a JavaScript function (sometimes called constructor), whose methods are also known as *actions*.  Each Controller is contained in its own separate file, under the /app/controllers/[controllerName]Controller.js naming pattern.  For example, /app/controllers/blogController.js might contain...
+
+> BlogController = function() {}
+>
+> BlogController.prototype.time = function(req, res) {
+>   res.renderText('The current time is ' + new Date());
+> }
+>
+> BlogController.prototype.listPosts = function(req, res) {
+>   res.posts = Blog.findActive('all');
+> }
+
+An incoming HTTP request with request query parameters such as ?controllerName=blog&actionName=listPosts tells the Junction system to invoke the controller named 'blog' and the action method named 'listPosts'.  Junction uses naming conventions to find and instantiate a controller function/constructor called 'BlogController'.
+
+Naming Conventions:
+
+By convention, a controllerName (used as a URL request parameter) is uncaptialized and singular, such as 'blog' or 'calender' or 'orderHistory'.  For example, the URL request parameters might be ?controllerName=orderHistory&actionName=list  
+
+The filenames for controllers are the controllerName concatenated with a  'Controller.js' suffix.  For example, blogController.js, calenderController.js, or orderHistoryController.js.  
+
+The controller function/constructor name is a capitalized controllerName, singular, with a 'Controller' suffix.  For example, BlogController, CalenderController, or OrderHistoryController.
+
+Programmers should use the global variable programming idiom as show above, rather than private variable idiom, so that the Junction system can easily reload code automatically as it's changed.  Otherwise, development will be horribly unproductive.  For example, use the following coding style when defining a Controller function/constructor...
+> OrderHistoryController = function() {} // Correct.
+instead of...
+> function OrderHistoryController() {} // Wrong, won't reload automatically.
+and instead of...
+> var OrderHistoryController = function() {} // Wrong, won't reload automatically.
+
+Action Methods:
+
+The Junction runtime system will create a new instance of the 
+controller for every request.  For example, if the HTTP request parameters
+are ?controllerName=blog&actionName=listPosts, then Junction will (handwave) 
+call...
+
+> var controller = new BlogController();
+
+Next, Junction looks for an action method on the controller instance 
+named actionName.  Any actionName prefixed with an underscore (_) character 
+will be considered private and not web-accessible, and will not be 
+invoked by Junction in response to a request.  That is, request parameters 
+that look like ?controllerName=invoice&actionName=_cancellationProcess
+will not succeed.
+
+Junction invokes the controller's action method with two parameters -- 
+a request object and a response object.  (e.g., Junction calls controller[actionName](request, response)).  By convention, these
+are usually known as *req* and *res*.
+
+The req object:
+
+The req object is a map object, containing key/value pairs of all the incoming parameters of the request.  GET and POST parameters are both contained in this map.
+
+Junction also converts nested parameter names into corresponding nested maps.  Any parameter whose name follows a multi-level 'key1[key2][keyN]' naming pattern triggers this conversion.  For example, parameters that looked like...
+
+> ?order[total]=24.99&order[customer]=John
+>  &order[line0][item]=shoe&order[line0][price]=14.99
+>  &order[line1][item]=hat&order[line1][price]=10.00
+>  &shipping=3_to_5_days
+
+would be converted Junction to the req object as something like...
+
+> req = {}
+> req.order = {}
+> req.order.total = '24.99'
+> req.order.customer = 'John'
+> req.order.line0 = {}
+> req.order.line0.item = 'shoe'
+> req.order.line0.price = '14.99'
+> req.order.line1 = {}
+> req.order.line1.item = 'hat'
+> req.order.line1.price = '10.00'
+> req.shipping = '3_to_5_days'
+
+Note that all parameters in the hierarchical map are string values, leaving
+parsing of values to different types as the responsibility of the
+application.  For example...
+
+> var orderTotal = parseInt(req.order.total);
+
+The res object:
+
+The res object is a map object.  It also contains methods to help render templates.  
+
+The controller may also place objects and values into the res object, which the template can later access.  For example...
+
+> BlogController = function() {
+>   this.show = function(req, res) {
+>     res.blog = Blog.findActive(req['objId']);
+>   }
+>   ...
+
+In the show action, the res['blog'] entry is set with the result of a Model query.  Here, the model is a Blog model.
+
+Later, the template can reference the blog object...
+
+> title: <%= blog.title %>
+> entry: <%= blog.body %>
+
+Private Variables:
+
+The Junction runtime will create a new instance of the controller 
+for every request (e.g., Junction will call: new BlogController()).  
+
+Because of this, if you wanted to have controller private variables, 
+you may your controller function/constructor using a 
+closure-based idiom instead of using the prototype idiom....
+
+> BlogController = function() {
+>   var userPassword = null; // A controller-instance private variable.
+>
+>   this.create = function(req, res) {
+>     // ... use the private variable here
+>   }
+>
+>   this.listArchivedPosts = function(req, res) {
+>     // ... use the private variable here
+>   }
+> }
+

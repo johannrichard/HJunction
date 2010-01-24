@@ -1,0 +1,373 @@
+About: Runtime On The Server
+
+The Junction server-side web application server (SSWAS) is implemented on top
+of the open-source Helma Object Publisher (HOP) server.  More information 
+about HOP is available at http://helma.org.
+
+The HOP server is a production-ready, JavaScript web application server 
+implemented using the open-source Rhino JavaScript interpreter and Java.
+The HOP server comes with an embedded Jetty web server, and many other
+features.  
+
+Running:
+
+To install and start the Junction SSWAS, see the directions under 
+[junction_release]/RUNNING.txt
+
+Team Space Directories:
+
+The Junction SSWAS is designed for multi-team hostability, where you
+can host the applications of several small business customers or 
+enterprise workgroups on a single Junction SSWAS instance.
+
+Each small business customer or enterprise workgroup is assigned 
+their own *team space*.
+
+Each team space is assigned its own subdirectory.  These team space 
+directories are stored under the [junction_release].spaces directory.  
+For example...
+
+> [junction_release].spaces/
+>   0/
+>   1/
+>   2/
+
+In the above example, we can tell that there are three team spaces, 
+which by convention, have a numeric directory name.
+
+You may, of course, just run Junction with a single team space,
+in which case there's only one subdirectory under the [junction_release].spaces
+directory.
+
+Application Directories:
+
+Each team space may have one or more Junction applications.  
+Each Junction application has its own subdirectory...
+
+> [junction_release].spaces/
+>   0/
+>     nextaction/
+>     wikiaction/
+>     salesaction/
+>   1/
+>     nextaction/
+>     contactApp/
+
+In the above example, we can see that team space 0 has three applications in it,
+while team space 1 has just two applications in it.  Team 0 and team 1
+are both running the nextaction application, albeit possibly different
+versions of Next Action.
+
+Application directory names must be alphanumeric only.  No punctuation.
+
+Application developers might consider prefixing their application 
+directory names, if they wish to publicly distribute their Junction 
+applications, to avoid namespace collisions.  
+For example, trimpath_nextaction and trimpath_salesaction.
+
+Application URL's:
+
+The team space and application directory names are visible in the
+URL's sent to the Junction application server.  For example...
+
+- http://localhost:8080/engines/0/apps/nextaction
+- http://localhost:8080/engines/0/apps/salesaction
+- http://localhost:8080/engines/1/apps/contactApp
+
+Application Directory Structure:
+
+Each application directory structure looks like...
+
+> [junction_release].spaces/
+>   122/
+>     nextaction/
+>       code/
+>         app/
+>           controllers/
+>           models/
+>           views/
+>         db/
+>           migrate/
+>         public/
+>           javascripts/
+>           stylesheets/
+>       db.sqlite3
+
+Code Directory:
+
+The code directory contains all the application static code resources.
+By static, we assume that application code and files are not normally 
+changed during application runtime, for easier cache-ability by the 
+Junction system.
+
+Also, files in the code directory are bundled together and
+sent to the web-browser during client-side Junction execution.
+
+During production deployment, the code directories are sometimes 
+checked into a source-code-control-system (SCCS), such as Subversion 
+or CVS.  A production pool of Junction SSWAS instances on a server farm,
+then, could be implemented to do a SCCS update/pull.
+
+In general, the Junction system does not put runtime or
+dynamically generated files, such as log, cache, or tmp files, into
+the code directory.  This enables easier delta comparisons with
+SCCS systems.  Instead, dynamically generated or modified files
+or directories, such as cache files, are created as siblings to
+the code directory.
+
+The last-modified filesystem timestamp of the code directory
+is important.  The code directory last-modified timestamp is used 
+by the Junction SSWAS as the application's code version number.  
+Thus, if you've changed any file that lives within the code directory 
+tree, and you want current clients to receive that new code, you
+should update or 'touch' the code directory's last-modified timestamp.
+The current clients will receive the new code on their next
+synchronization request.
+
+Independent Database Per Team-space and Application:
+
+Each application within a team-space has its own a separate RDBMS 
+database.  So, RDBMS records from different applications or from 
+different team spaces will not be mixed together.
+
+When using the Sqlite3 driver (the default driver), the Junction 
+SSWAS automatically creates a db.sqlite3 file as the RDBMS storage.  
+The db.sqlite3 file is created on-demand, or only as needed,
+by the Junction SSWAS under the team-space/application directory, 
+as a sibling to the code directory for the application.  
+
+The sqlite3 program (available from http://sqlite.org) can be used
+to directly access and query the db.sqlite3 file, such as for
+batch SQL operations or dump/backups.
+
+Code Sharing or Linking:
+
+You may wish for multiple teams to share the same application code,
+but each have their own independent database.  This is accomplished
+by creating a code.link file instead of a code directory.
+The code.link file contents should be a single line,
+of [spaceDir]/[appDir].  For example...
+
+> [junction_release].spaces/
+>   100/
+>     nextaction/
+>       code/
+>         app/
+>           controllers/
+>           models/
+>           views/
+>         db/
+>           migrate/
+>         public/
+>           javascripts/
+>           stylesheets/
+>       db.sqlite3
+>   200/
+>     nextaction/
+>       code.link
+>       db.sqlite3
+>   201/
+>     nextaction/
+>       code.link
+>       db.sqlite3
+>   202/
+>     nextaction/
+>       code.link
+>       db.sqlite3
+
+Above, only the 100/nextaction directory has a true application code directory.
+All other spaces (200, 201, 202) have a code.link file whose contents
+are...
+
+> 100/nextaction
+
+That points the Junction system to use the code from 100/nextaction/code.
+
+Any code updates to 100/nextaction/code will be automatically shared or
+inherited by 200/nextaction, 201/nextaction, 202/nextaction.  
+Those linked spaces have their own independent db.sqlite3 databases.
+
+Applicaton System Actions:
+
+A URL to an application can specify a system action or verb to execute
+against the application.  The action/verb is expressed as a semicolon (;)
+suffix: http://localhost:8080/engines/0/apps/nextaction;[action]
+
+Valid systems actions:
+
+- invoke - this is the default system action.  
+This action executes a controller/action-method on the server-side.
+For example: http://localhost:8080/engines/0/apps/nextaction;invoke?controllerName=home&actionName=index is equivalent to http://localhost:8080/engines/0/apps/nextaction?controllerName=home&actionName=index
+
+- start - execute the application on the client-side web-browser.
+The response HTML page contains the complete application code 
+and resources, with the client-side Junction system.
+
+- migrate - for development or administrative use.  Executes
+a migration on the server-side RDBMS.  A version parameter lets
+you specify which database version to migrate to, which defaults
+to the highest or latest version.  For example: http://localhost:8080/engines/0/apps/nextaction;migrate?version=0 
+effectively drops all tables of the application in the server-side RDBMS.
+http://localhost:8080/engines/0/apps/nextaction;migrate?version=1
+migrates the server-side RDBMS through its first migration step.
+http://localhost:8080/engines/0/apps/nextaction;migrate migrates
+the server-side RDBMS through all migration steps, bringing the
+database version up to the latest available version.
+
+- public - accesses a resource in the application's code/public subdirectory.
+For example: http://localhost:8080/engines/0/apps/nextaction;public?path=stylesheets/app.css
+
+- manifest - returns a Google Gears manifest JSON file for the application.
+For example: http://localhost:8080/engines/0/apps/nextaction;manifest
+
+System Log Files:
+
+Junction system log files are provided by the HOP logging infrastructure.
+HOP defaults to putting log files in the [junction_release]/hop/log 
+directory, with automatic log rotation and log-archive-compression (gzip).
+
+Junction server-specific log files follow a naming pattern of 
+[junction_release]/hop/log/helma.engines.*
+
+A useful Unix command to see log files (such as during application development)...
+
+> tail -f [junction_release]/hop/log/helma.engines.event.log
+
+Debugging:
+
+During application development, you can configure extra debug information
+by adding the following to the [junction_release]/hop.apps/engines/app.properties
+file...
+
+> debug = true
+
+Also, on a development workstation, a GUI JavaScript debugger is available,
+which is a feature of the HOP system.  To use the GUI debugger,
+see the documentation available in your local workstation installation
+by visiting http://localhost:8080/tools/debugger
+
+Administrative Marker Files:
+
+A system administrator can create specially-named marker files, to
+signal to the Junction system, for example, to disable a 
+space or application.  You can place these files in either
+a team space directory (to mark an entire space), or in an
+application directory (to mark just one application).  
+In the application directory, the marker file should be 
+a sibling to the application's code directory).
+
+> __DISABLED__   - Marks a team space or a single application as disabled, 
+>                  meaning any requests into the space or application
+>                  are rejected by the Junction SSWAS.  This is useful
+>                  for upgrade downtimes.
+>
+> __READONLY__   - Marks a team space or a single application
+>                  as read-only, meaning any database modification requests 
+>                  in the team space or an application will be rejected.
+>                  Modifications rejected include INSERT/UPDATE/DELETE and
+>                  schema changes (DDL).  This is potentially useful
+>                  for backups or other upgrade downtime needs.
+>
+> __NOINVOKE__   - Marks a team space or a single application
+>                  in a team space as not executable on the server-side.
+>
+> __NOSTART__    - Marks a team space or a single application
+>                  in a team space as not executable on the client-side.
+>
+> __NOSYNC__     - Prevents access to sync protocol service
+>                  in a team space or application.
+>
+> __NOMIGRATE__  - Prevents access to the migrate action of a 
+>                  team space or application.
+>
+> __NOMANIFEST__ - Prevents access to the Google Gears manifest 
+>                  information in a team space or application.
+
+Other HOP Applications:
+
+The Junction release comes with the default HOP system, which includes
+several pre-installed applications, such as http://localhost:8080/manage
+and http://localhost:8080/welcome.  Please visit those pages
+to learn more about them, and to consider disabling them before 
+a public production launch.
+
+Users:
+
+The basic Junction server system allows each team space to have an 
+independent set of users.  These users are defined under the
+__users__ directory under each team space directory.  For example...
+
+> [junction_release].spaces/
+>   0/
+>     __users__/
+>       alex.json
+>       brenda.json
+>       tom.json
+>   1/
+>     __users__/
+>       __anonymous__.json
+>       hillary.json
+>       mitt.json
+>       rudy.json
+
+In the above example, team space 0 has 3 users: alex, brenda, and tom.
+Team space 1 has 4 users: hillary, mitt, rudy, and a special
+'__anonymous__' user.  
+
+The user JSON files can contain extra information about each user,
+but as a first step, Junction checks for just the existence of the 
+user JSON file as a signal that a user is allowed to access a team space.
+
+The file base name of a user JSON file (e.g., 'alex', from alex.json),
+is known as the *user key*.  For team space 0, the user keys are
+alex, brend, and tom.
+
+As described in the next section, the last-modified timestamps
+of the user files are important for the Junction system to
+determine authentication and authorization.
+
+The special __anonymous__ user file is checked for existence by
+the Junction server system to determine whether anonymous
+users (not logged in users) are allowed to access a team space.
+
+The junctionToken_[spaceKey] cookie:
+
+For each request, the Junction server system checks for the existence 
+and correctness of a junctionToken_[spaceKey] cookie to determine the current
+logged-in user.  When the junctionToken_[spaceKey] cookie is missing, the Junction
+server assumes the current user is anonymous (that is, the userKey is null).
+For example, the cookie name might be junctionToken_0 or junctionToken_100.
+
+The current user is then checked against the team space __users__
+directory to see whether the current user belongs to the allowed
+users for the team space of the request.
+
+The junctionToken_[spaceKey] cookie should have a value of 'userKey|userStamp',
+where the userStamp is the encrypted last-modified timestamp (in seconds since
+the Unix epoch) of the user JSON file.  For example: alex|1239842379349
+
+Integration with other systems is thus very simple.  For example,
+you might have a separate PHP (or Rails or ASP) application running
+on the same server/domain (mounted into the same URL space) that provides 
+a true user login service.  When users login into the PHP system, 
+the PHP code can also set a junctionToken_[spaceKey] cookie, and 
+redirect to a Junction server URL.  The PHP code needs access to the
+[junction_release].spaces directory tree, especially as the file last-modified
+timestamp is the server-side secret information it shares with the 
+Junction system.  The PHP code can also easily create the right '__users__' 
+directories and files per team space.  Please see the
+userCheck.js file for information on the userStamp 
+encryption algorithm.
+
+When the user logs out of the PHP system, the PHP code
+should reset or clear the junctionToken_[spaceKey] cookie and also 'touch' 
+the last-modified timestamp of the user JSON file.  
+
+This design allows for high independence between login managment
+systems (e.g., the PHP system) and the Junction servers.
+For example, restarting one system, such as the PHP system,
+does not affect the Junction runtime servers.  Please see
+the hop.apps/engines_sessions application for an example of
+a 'separate' system that controls the login/logout sessions
+for Junction.
+

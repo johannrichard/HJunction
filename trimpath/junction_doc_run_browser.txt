@@ -1,0 +1,214 @@
+About: Runtime In The Browser
+
+How does the Junction runtime actually work in the browser?
+
+The analogy described in the <Runtime Environments> page
+was to imagine that there is a miniature web-application-server
+running in your web browser.  At root, such a thing is implemented 
+entirely as just plain old JavaScript hosted inside a web page that loads 
+and runs your application's web-Model-View-Controller (web-MVC) code.  
+This miniature, client-side web-application-server is comprised of 
+and manages several different kinds of JavaScript code...
+
+ * Junction utility code (junctionUtil.js)
+ * Junction system code (junction.js and junctionClient.js)
+ * Application 'server-side' code, or web-MVC code.
+ * Application 'client-side' code, such as DOM event handlers.
+
+In the following discussion, we sometimes use acronyms to distingish 
+between a 'real' or traditional-style, server-side web-application server (SSWAS), 
+and the 'miniature', in-browser, client-side web-application server (CSWAS).
+
+Junction utility code:
+
+The low-level utility code for Junction, found in trimpath/junctionUtil.js, is designed to run in both SSWAS and CSWAS environments.  That is, it never accesses environment specific objects or resources such as the DOM document, DOM window 
+or the filesystem.
+
+Junction system code:
+
+The heart of Junction system is found in trimpath/junction.js.  The junction.js code is is designed to also run in both SSWAS and CSWAS environments.  The junction.js code requires an environment-specific 'plug-in' to be registered.  This plug-in, also called 'env' (short for 'environment'), provides abstract services that the Junction system requires (such as file loading), but which have different implementations for SSWAS and CSWAS environments.  The CSWAS env implementation is found in trimpath/junctionClient.js.
+
+As an example, a file loading service implemented for the SSWAS environment would access a real operating-system filesystem, opening-reading-and-closing real File objects.  For the CSWAS environment, a file loading service would be implemented by instead simply retrieving text bodies from DOM elements (e.g.,  document.getElementById(filePath).innerHTML).  Because the CSWAS environment can only support text-based content, the env or environment plug-in API is constrained and designed to support only something like a textRead(filePath) function.
+
+Together, the junction.js code hooked up with junctionClient.js code 
+provide the so-called miniature web-application-server that 
+runs completely hosted within a web-browser.
+
+Application 'server-side' code, or web-MVC code:
+
+Tranditionally, developers have considered a web-Model-View-Controller codebase
+to be server-side or server-executed code.  That is, controller dispatching, 
+model CRUD (create, retreive, update and delete), and template parsing and 
+rendering are usually executed on a remote web-application server.  
+This situation is similar to server-side web-MVC frameworks such
+as Ruby on Rails, Django, and Java Servlet/JSP/Hibernate.
+
+Junction allows web-MVC code to also execute in a web-application server 
+that lives and runs within a web-browser client.  However, _web-MVC
+application code is still to be considered server code_, no matter that it 
+is hosted and executed within a 'server' that's been migrated to the client.
+
+Because we still consider web-MVC code to be server-side code, the web-MVC
+code should still be constrained as to what objects it can access.  For example,
+even though an application's web-MVC code might be actually running on the
+client web-browser hosted within a HTML page (in a CSWAS), the web-MVC 
+code _must not_ access the client browser's DOM objects such as 
+document or window or alert(), even though these DOM objects are, 
+strictly speaking, actually there.  Following such rules allows a 
+single web-MVC application codebase to be executed on either a 
+SSWAS or a CSWAS environment.
+
+The reverse rule applies, too.  For example, although a web-MVC application
+might be actually running in a server-side web-application server (SSWAS),
+it must not attempt to directly access any server-only resources (like 
+the server's filesystem) if you want to allow that same codebase to
+also run in a CSWAS.  (The exception, though, is when you choose to
+add conditional IF-THEN-ELSE checking into your application code.)
+
+Application 'client-side' code, such as DOM event handlers:
+
+The 'client-side' code is the code that only runs in a client.  
+For example, this is the script that usually goes into 
+onclick/onsubmit/onmousemove and other DOM event handlers.
+And, this is the code and helper functions that are invoked by
+your DOM event handlers.  
+
+The jQuery/Prototype/Dojo code that you used to hook up or bind 
+up those DOM event handlers and provide fancy animations are also
+considered client-side only code.
+
+Keeping the distinction between client-side code and server-side web-MVC 
+code clear, especially when both types of code are written in the
+same language of JavaScript, is sometimes challenging.  
+For example, consider...
+
+> <div>
+> <script>var x = 1 + 2;</script>
+> <a onclick="alert(x)">press me</a>
+> </div>
+
+> <div>
+> <% var x = 1 + 2; %>
+> <a onclick="alert(x)">press me</a> // WHOOPS, wrong.  The x is undefined.
+> </div>
+
+In contrast, with a framework such as Django or Ruby on Rails, the
+language shift between Python/Ruby and JavaScript seems to help enforce 
+the distinction between server-side code and client-side code.  
+The distinction between different types or 'sides' of code, albeit 
+all in a single programming language of JavaScript, then, is something 
+that developers will have to be explicitly aware of until it becomes
+natural for them.
+
+Runtime code separation:
+
+To help enforce a separation of server-side web-MVC code and client-side 
+DOM-event-handler code (even though both are executed in the same web 
+browser), Junction provides a runtime separation of scopes.
+
+Junction implements this separation by running server-side web-MVC code 
+in the primary downloaded web page document/window.  And, Junction uses a dynamically 
+created and displayed child IFRAME to execute all client-side code.  By using
+this scheme, any global variables or objects created by the server-side 
+web-MVC code are not implicitly or mistakenly accessible by the client-side 
+DOM-event-handler code, and vice versa.  (NOTE: although your could 
+try to explicitly traverse through the DOM IFRAME parent-child API's
+to tweak objects 'on the other side' of the IFRAME, such code would 
+not run correctly in a SSWAS environment).
+
+Another benefit of the IFRAME-based approach is that it provides
+the application developer with complete, fine-grained control of
+the whole HTML page.  That is, the application's web-MVC code is 
+allowed (and expected) to generate a full HTML response page.
+Everything from the opening <html> tag to close </html> tag is
+under the application's control.  This also allows Junction to 
+be technology library and technique agnostic -- feel free to use 
+your favorite DHTML techniques and tech libraries (like Prototype/Dojo/jQuery/etc)
+or add-ons such as Flash, Java applets, etc.  Junction does not put
+any abstractions in the way (such as an XML-based GUI markup language) 
+of letting you have deep, down-to-the-metal control.
+
+Let's follow a request: Junction invokes an action method on your
+Controller code, which in turn usually invokes CRUD operations on 
+Model object-relational objects.  Eventually, a template is parsed 
+and rendered and a dynamically generated HTML web page is the result.  
+The Junction CSWAS system now takes that dynamically generated HTML 
+web page and writes it out as the content of the managed child IFRAME.  
+This child IFRAME is defined to automatically take up the entire 
+client area of its browser window.  The effect is the dynamically 
+generated web page looks just as if it had been delivered as a 
+response from a remote SSWAS system.
+
+Now, the web-browser, following normal procedure, will invoke 
+whatever 'client-side' <SCRIPT>'s that were defined.  (Aside: actually,
+Junction tries to provide a little help here, to ensure that <SCRIPT>'s
+are evaluated correctly in the child IFRAME.)  If you had included jQuery/Prototype/Dojo or your other favorite JavaScripts, they would 
+also be evaluated.  
+
+Continuing, as the user provides input via mouse/pointer gestures 
+and keyboard input, any DOM event-handlers and callback code that you
+had defined or hooked up would be invoked.  Since all this client-side
+code and script is contained and hosted inside a child IFRAME,
+this client-side code does not have implicit, shared access to the
+web-MVC code and objects hosted in the parent document/window.
+In short, this scheme imitates the same situation of a traditional client-side 
+script not having implicit, shared access to the web-MVC objects that 
+live in a true, remote SSWAS.  For example, a global variable defined 
+by 'server-side' web-MVC code does not interfere with a global variable
+defined by client-side <SCRIPT> or event-handler code.
+
+TrimPath.junctionClient:
+
+Eventually, as the user is clicking around her web browser screen, 
+he or she will eventually need to see new results from the database.
+That is, we will need to send a request into the CSWAS system
+to start a new web-MVC request-processing, template rendering cycle.
+
+For example, here is a link that the user might click on...
+
+> <a href="?controllerName=product&actionName=list"
+>    onclick="return TrimPath.junctionClient.get('product', 'list')">
+>    List All Products
+> </a>
+
+This pattern of link is actually designed to leverage the default 
+behavior of web browsers and careful overriding that behavior.  
+Junction provides helper methods to make it easy to generate 
+these kinds of links (and also FORM's) from your templates (for example, 
+see function linkToLocal()).
+
+During a click, the onclick handler invokes TrimPath.junctionClient.get(...).
+The TrimPath.junctionClient object provides methods like get() and post()
+which help to dispatch HTTP-like requests from the child IFRAME scope 
+into the parent-window CSWAS request-processing system.  In short,
+TrimPath.junctionClient.get() and TrimPath.junctionClient.post() 
+imitate the HTTP GET and HTTP POST requests, but just send them
+to the local, client-side web-application server for processing.
+When the CSWAS returns a normal response, the contents of the child IFRAME
+are overwritten with that response.  The end user, then, sees a
+new page of information.
+
+Alternatively, if the application was running 
+in a server-side web-application server (SSWAS) environment,
+the system would not be using IFRAME's, because separation of
+server-side web-MVC code and client-side DOM event-handler code
+occurs naturally across remote processes.  Also, Junction would 
+instead automatically provide a no-op implementation of 
+TrimPath.junctionClient methods, which client-side event-handler code
+might still invoke.  In this situation, methods like 
+TrimPath.junctionClient.get() and TrimPath.junctionClient.post()
+would instead do nothing and return a boolean value of true.  When
+invoked from an event handler, such as the onclick handler of a link 
+as seen above, the true boolean return value signals to the web-browser 
+to continue processing the link click event as normal.  
+
+So, following the above example, the browser would then transmit a 
+real HTTP request to a relative server URL resource, but with 
+a changed URL query string parameter suffix of '?controllerName=product&actionName=list'.
+The remote SSWAS would process that HTTP request and dispatch to the 
+correct server-side web-MVC code, eventually replying with a full, 
+dynamically-generated web result page that the client web browser 
+would then display to the user.  This outcome is the same as for
+the CSWAS scenario (except without the child IFRAME container 
+and perhaps performing visibly slower due to the network hops).
+

@@ -1,0 +1,376 @@
+About: Synchronization
+
+The Junction synchronization system provides several basic services to propagate and handle...
+
+ * Codebase updates  
+ * Database schema updates or migrations
+ * Database record-level replication
+
+simpleSync:
+
+The protocol Junction implements is called 'simpleSync'.  Its design 
+is focused around a database-to-database level of synchronization, 
+at the record level.  Other protocols, in contrast, might focus on 
+recording and synchronizing higher-level command objects, or REST actions,
+or harmonizing file deltas, or reordering insert/delete commands, or 
+some other concept, with different pros and cons to each kind of 
+synchronization.
+
+Just as the saying goes with distributed objects, 'there is no location transparency',
+perhaps we can also say with distributed databases, 'there is no synchronization transparency'.  Application developers need be aware of how simpleSync works,
+and how it can affect their designs, data models, and code.
+
+Sync Request Initiation:
+
+A synchronization request is initiated by the client web-browser.
+This is due to the usage of the HTTP protocol, where a web-server
+cannot initiate requests.  
+
+As part of the sync request, the Junction client transmits...
+
+- its current application version,
+- its unique client-side database id (or 'ident'), 
+- its last sync request timestamp
+- a delta of records that have changed in the client-side 
+  database since the last sync.
+
+Database Identity (or ident):
+
+On the database ident, each database in the Junction world is 
+assigned a unique numeric identifier, or 'ident'.  For example, 
+each server-side RDBMS in a team space for a particular application 
+has a unique ident.  On the client-side, each Google Gears RDBMS 
+database will be assigned a unique ident.  Each time a memory-database 
+is created by the client-side Junction system, a unique ident is 
+also assigned.
+
+Junction uses a current datetime plus random number to generate
+these unique database ident's.
+
+Codebase Updates:
+
+In response to the sync request, the first thing the Junction server
+checks is that the client or requestor is running the latest or same 
+version of application code that exists on the server.  
+
+The Junction server uses the last-modified timestamp of the
+application code directory as the application's version number.
+Developers should be careful to update or 'touch' the code directory's
+last-modified timestamp whenever the application's codebase changes,
+to force existing clients to receive new code updates.  Pernicious
+bugs might seem to appear if you forget to do a 'touch'.
+
+If the client is running outdated code, the Junction server 
+sends a response with a complete copy of the entire, latest 
+application codebase.
+
+The client-side Junction system uses that entire, complete copy 
+of the application codebase to 'wipe out' its old codebase, replacing 
+it with the new application codebase.  Even if you change only a single 
+line of code in the application, this simple protocol always transmits the 
+entire, complete application codebase to the client in response
+to a codebase update.
+
+Database Schema Updates or Migrations:
+
+In the complete application codebase that the client receives, 
+besides the web-MVC code, the client also receives database schema
+migration scripts.  These are the *.js files that live under the 
+db/migrate directory.  The client-side Junction system executes these 
+scripts, in sorted order, to ensure its local client-side RDBMS is updated 
+to the same schema version as the server-side RDBMS.
+
+By convention, these scripts are named like 0001_initial.js, 0002_add_price_columns.js,
+NNNN_some_text_description.js, to facilitate sorting.
+
+At this point, the client-side Junction system should be
+running the same version of application code and database schema
+as the server, so the client-side Junction system tries to
+initiate another sync request.  That is, the client-side
+Junction system repeats the 'Sync Request Initiation'.
+
+Database Record-Level Replication:
+
+When the Junction server receives a sync request, it first checks
+that the client or requestor is running the correct version of
+application code and schema.  If the versions match what the
+server is running, the server proceeds in processing the
+delta of records that were sent by the client.
+
+The delta of records includes any table rows that were inserted,
+updated or deleted since the last the the client sync'ed.
+
+Tracking Columns:
+
+The Junction system uses special database tables and columns to help
+the client-side Junction system track which records were changed since the
+last sync request made by the client.  These special database columns are
+automatically created by the Junction system if you used
+the Junction API of createStandardTable() in your database
+migration scripts.  These special tracking columns include...
+
+> - id          integer primary key autoincrement
+> - created_at  datetime
+> - updated_at  datetime
+> - active      integer
+> - version     integer
+> - id_start    integer
+> - id_start_db varchar(40)
+> - synced_at   datetime
+
+The created_at and updated_at columns are automatically filled
+and updated by the Junction system whenever you call the 
+Model.newInstance() and save() method of a Model instance.
+
+The version number column is automatically incremented, also, 
+whenever you call the save() method of a Model instance.
+
+The id column:
+
+Records are assigned permanent, positive id numbers by the
+server-side RDBMS.  If the application code is executed on the
+Junction SSWAS (server-side web application server), getting a 
+new positive id number from the server-side RDBMS is easy.
+
+On the client-side Junction system, however, when a record is first 
+created, the Junction client system does directly not request a new
+positive id number from the server.  Instead, the client-side 
+Junction system just immediately assigns a 'unique' negative 
+id number to the record, where the negative id number is unique
+to the local, client-side database only.  The client-side Junction 
+system tracks a monotonically decreasing negative id number on a 
+per-database manner, so it can do fast negative-number id assignment.
+
+The id_start and id_start_db columns:
+
+When a new record is created and saved, the Junction system also fills in 
+the id_start column with a copy of the record's id number.
+If created on the client-side, then, both id and id_start will
+be a negative number.  If created on the server-side, both
+id and id_start will be positive.
+
+Also, the Junction system fills in the id_start_db column with the 
+local database ident.  
+
+This information helps Junction track who created the record, 
+and helps Junction map from negative id's
+to positive id's (when they're assigned later) and vice-versa, 
+from postitive id's to negative.
+
+The id_start and id_start_db columns are only assigned 
+during record creation.
+
+Record Delta Tracking Via Model:
+
+When running on the client-side, Junction watches object-relational Model 
+calls for when new Model instances are created and saved.  For example, 
+when you call invoice.save(), Junction remembers that a record in the 
+Invoice table was either inserted/created or updated.  That record is 
+then a candidate for synchronization on the next sync protocol request.
+
+However, if you directly call INSERT, UPDATE, or DELETE via direct SQL 
+statments against the database rather than going through the 
+object-relational Model API, Junction will not detect that direct
+SQL-modified records have been changed.  Thus, such records will not be 
+synchronized.  The key is for developers to always use Model API's
+to ensure proper synchronization tracking.
+
+Record delta tracking is not performed for the server-side Junction system,
+as the server-side RDBMS is considered the source of truth, and thus is
+never considered to be outdated.
+
+The active column, the active pattern, and handling DELETE's:
+
+There is one scenario, however, where not tracking server-side
+record deltas is an issue, and that is with respect to record DELETE's.
+Once a record is DELETE'd from an RDBMS, it's gone and won't appear
+in any query results.  
+
+In the scenario where we DELETE a record from the server-side RDBMS, and at 
+a later time a client requests a synchronization, the server could mistakenly 
+*not* inform the client that a record was DELETE'd, because DELETE'd
+records do not appear in any query results anymore.
+
+To solve this scenario, Junction recommends using the active flag
+column, and deactivating records instead of physically DELETE'ing
+them.  Deactivating a record is just setting its active column 
+value to 0.  An active record has an active column value of 1.
+Junction provides Model API's such as deactivate() and findActive()
+to help developers code to the active flag column pattern.
+
+Instead of calling Invoice.find(...), developers should prefer
+calling Invoice.findActive(...), with the same parameters.
+The findActive() method adds the additional WHERE query clause
+of ' AND active = 1' to any query it executes.
+
+Instead of calling invoice.destroy(), which performs a physical
+SQL DELETE, the developer should call invoice.deactivate(), which
+merely sets the active column value to 0 on the invoice record and save()'s
+the invoice record.  During the save() call, the updated_at column
+and version colunn of the record are automatically updated, per normal
+Junction Model behavior.  To the synchronization system, thus, setting
+the active column value to 0 is just another record update that
+needs to be synchronized, and is handled through normal replication
+steps as described on this page.  
+
+At a later time, after enough time has passed for the
+deactivation (setting active to 0) of a record has
+replicated to the server-side RDBMS and to all client RDBMS,
+then the record can be physically DELETE'd or purged.  For example,
+just DELETE all records whose active = 0 and udpated_at is very
+long ago, according to application needs.
+
+Using the deactivation pattern, too, instead of true DELETE's,
+has the potential benefit of making support for undo features easier
+to implement.
+
+Synchronized Tables Conventions:
+
+To be a candiated for synchronization, a table must follow
+some naming and design conventions.  The table must not
+have the suffix of 'Local'.  For example, PreferenceLocal
+or ScratchTempLocal are two tables which will not be 
+synchronized or replicated by Junction.
+
+Also, a table must have the tracking columns as described
+previously.
+
+The db/sync.json file:
+
+By default, Junction synchronizes all records in all tables.
+While this is a useful default for faster initial development and
+prototyping of simple applications, Junction also provides
+a way to override this naive policy via the optional 
+code/db/sync.json file.  Each application has its own
+code/db/sync.json file, and hence, ther own potential 
+synchronization policy.
+
+The file format for the code/db/sync.json file is JSON.
+For example:
+
+> {
+>   clientDbCache: {
+>     general : {
+>       Action  : "WHERE (active = 1 AND completed_at IS NULL) OR (updated_at >= date('now', '-1 month'))",
+>       Context : true,
+>       Project : true
+>     }
+>   }
+> }
+
+In it, an application developer can specify a subset of
+each server-side database table that will be cached by
+client web-browsers.  This is done by specifying a
+WHERE clause string per table, or the value of true
+to specify that the entire table should be cached on the
+client.
+
+Above, both the Context and Project tables will be cached in
+their entirety in the client-side RDBMS.
+
+And, the Active table will have only those records cached in the client-side
+that are currently active and not yet been completed, OR who have been
+updated within the last month.  
+
+As part generating the synchronization response, Junction uses
+the above code/db/sync.json file information to run queries
+against the server-side RDBMS, to construct which records need
+to be sent to the client as part of the synchronization reply.
+
+The synced_at column:
+
+The synced_at column holds the server timestamp of when the server-side
+Junction system processed the record during sync message handling.
+
+The synced_at timestamp for a record might be more recent than the
+updated_at column value of that record.  This might happen,
+for instance, when a record is changed by an offline client.
+So, the record's updated_at column is changed to time T.
+Later, the record is transmitted as part of a delta of records
+in a sync request to the server.  The Junction server updates the
+server-side RDBMS with the record delta, and updates the
+synced_at column of the record.  At this point, in the server-side
+RDBMS, the updated_at value is still T, but the synced_at value is T+1
+for the record.  Furthermore, the Junction
+system might include the record as part of the sync response
+message to any client.  As a client receives and processes
+the response message, it updates its local client-side RDBMS
+with the record information, which has updated_at value of T
+and synced_at value of T+1.  
+
+The client-side Junction system also remembers its last
+time of sending a sync request message, for use when it
+sends its next sync request message in the future.
+
+The synced_at column is queried by the Junction synchronization system
+to limit the response it will send to clients.  That is, Junction
+appends an SQL WHERE AND clause of synced_at >= [last sync request timestamp]
+to the query it uses to construct which reply records will be sent
+to the client.
+
+Assumptions / Notes:
+
+The Junction simpleSync protocol makes several assumptions 
+for it to work correctly...
+
+- friendly, cooperative clients and servers (no liars)
+- synchronized clocks, or correct (enough) clock time on computers
+- db identity (ident) uniqueness
+- monotonically decreasing negative temporary id numbers are unique per db ident
+
+Application Design Rules:
+
+With simpleSync, the key design points or rules of thumb 
+to successful usage are...
+
+- Always insert - said another way, never update -- create new records only.  
+- Also, don't delete - instead, deactivate records, and purge them much later.
+
+As rules of thumb, these guidelines are just that.  Sometimes you
+need to color outside the lines.
+
+However, consider the case of a wiki application.  Edits to wiki pages 
+might be tracked in a version/history table.  That version/history table 
+can be considered an 'insert only' or 'append only' table.  Some wiki
+database designs have only the version/history table.
+
+Conflict resolution on such insert/append only tables can
+be relatively easy to think about, as all changes across history 
+are available for the resolution decision.
+
+Or, consider an sales order tracking application.  One design might
+include an Order table with a status column, where the status value
+changes during the Order lifecycle through values of 'open', 
+'complete', 'shipped', 'received', 'cancelled', and 'returned'.
+Such an Order table requires UPDATE's to the status column.
+
+An alternative, insert-only or append-only design calls for
+adding an additional OrderStatus table, which has a foreign-key
+relationship to a parent order_id.  (OrderStatus belongs_to Order.)
+The OrderStatus table is an insert-only/append-only table.  Each
+change in to an Order's state merits inserting a new record
+in the OrderStatus table, which allows tracking of detailed
+OrderStatus change timestamps (created_at/updated_at) and
+extra columns such as notes fields.
+
+Moreover, if you added a previous_order_status_id column to
+the OrderStatus table, conflict detection becomes simplier.
+After awhile, imagine that all synchronization/replication/merging 
+of records across database eventually settles down.
+Then, a simple query which returns more than one OrderStatus
+record with the same previous_order_status_id shows you 
+that a conflict happened.  
+
+Perhaps two different offline users concurrently changed the Order's state.
+Application-specific code, at this point, might help automatically
+determine the resolution.  E.g, if one user 'complete'ed the
+order while a different user 'cancel'led the order, the
+cancellation might automatically win as the correct state.
+
+In the worst case, if user involvement is needed for conflict
+resolution, displaying the full history and action trail
+to users is useful, and possible with the history-intensive
+insert-only/append-only kind of design.  E.g, hey, we both 
+sold the last remaining prebuilt 16TB disk array to two different 
+customers.  Congrats. But, which customer will we inform that 
+will have to wait a little longer?

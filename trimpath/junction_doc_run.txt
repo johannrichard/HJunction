@@ -1,0 +1,232 @@
+About: Runtime Environments
+
+You have several different options for deploying a Junction-based 
+web application, depending on where you want your web application 
+code and database to run...
+
+- Run your Junction application in a web application server.
+- Run your Junction application in a web browser client.
+- Run your Junction application in both places.
+
+Run Your Junction Application In A Web Application Server:
+
+This type of deployment is similar to how you use other 
+server-side web application frameworks, such as 
+Ruby on Rails, Django, or Java Servlets/JSP/Hibernate.  
+
+Here is a simplified picture that shows how a web application server
+is responsible for dynamically generating HTTP responses from  
+requests from web clients.  The web application server executes 
+the web application's Controller, Model and View code on the server-side.  
+The Model code provides object-relational access to 
+data from a relational database management server (RDBMS).
+
+> client-side:                         server-side:
+> +-------------+                      +----------------+
+> | web browser |                      | web app server |
+> |             |                      |                | +-----------+      
+> | <a href>    | ==> HTTP request ==> | Controller     | |           |
+> |             |                      |        Model <=====> RDBMS   |
+> |             | <== HTTP response == | View           | |           |
+> +-------------+                      +----------------+ +-----------+
+
+Junction's web-application server is implemented using the
+open-source Rhino JavaScript scripting engine.
+
+In the Junction world, the Model and Controller application logic
+are coded in JavaScript.  View templates are coded using  
+JavaScript Template (JST) markup tags (or by using 
+EcmaScript Template (EST) markup tags, if you prefer).
+
+The request and response between the client and server may be
+for a full dynamically generated HTML result page, such as when 
+a user clicks on a simple HTML link (<a href="...">).  
+Or, the request/response may be for an Ajax-driven partial page 
+fragment or for an Ajax-driven XML/JSON data result.
+
+One issue with running Junction on the server-side is that users need
+to be always fully connected to use the web application.  This precludes
+mobile clients or clients who have a slow, intermittent or unavailable
+network connection (think of iPhone).  The next deployment scenario 
+discussed provides a partial solution, allowing users to use 
+their web application even when offline.
+
+Run Your Junction Application In A Web Browser Client:
+
+Alternatively, you can have your Junction-based application running
+entirely in the web browser client.
+
+> client-side:                                      server-side:
+> +---------------------------------------------+   +----------------+
+> | web browser                                 |   | web app server |
+> |                                             |   +----------------+
+> | <a href>    +~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~+
+> |             '  +---------------+ +--------+ |
+> |  request ====> | Controller    | |        | |
+> |             '  |        Model <===> RDBMS | |
+> |  response <=== | View          | |        | |
+> |             '  +---------------+ +--------+ |
+> |             '   junctionClient              |
+> +-------------+-------------------------------+
+
+In this deployment scenario, the same Model-View-Controller code as 
+from the previous server-side case is instead deployed into
+a web page and downloaded into the web browser.  
+So, all the Model-View-Controller application code executes completely 
+in the web browser on each request (it's all just JavaScript, after all).
+We note again that it's the _same_ application code in both server-side 
+and client-side runtime scenarios.  For example, your View template 
+code still gets processed and rendered the same way, whether 
+running on the server or on the client.
+
+Junction API's and conventions are designed so that a
+single application codebase should be able to run either
+on the server-side or on the client-side without any conditional
+environment checking logic in your application code.  You'll
+need to follow simple rules, though, such as not accessing 'document.body'
+or calling 'alert("Hi")' in your Models, Views or Controllers, 
+because such API's are not available when executing in a 
+server-side environment.
+
+In the web browser, a junctionClient runtime component mediates 
+between processing requests from the user and displaying responses back 
+in the web browser page.  The junctionClient runtime component
+is itself written in JavaScript.
+
+In this environment, HTML links and controls that the user 
+clicks on in the page require an onclick/onsubmit event handler 
+that invokes the junctionClient runtime...
+
+> <a href="..." 
+>    onclick="return TrimPath.junctionClient.get(...request info...)">
+>    Show All Products
+> </a>
+>
+> <form action="..."
+>       onsubmit="return TrimPath.junctionClient.postForm(...)">
+>   ...
+> </form>
+
+Because the junctionClient runtime is invoked as part of the event handler, 
+it will process the request locally, using the client-side MVC application 
+code and local RDBMS.  It is as if a mini-web-application-server was
+running right in your browser.  This often provides a marked 
+improvement in UI responsiveness since there is no communication with 
+any remote server and thus avoids any hiccups or failures due to slow, 
+intermittent or unavailable network connectivity.  (Think of Safari 
+on the iPhone on a weak network connection.)  Junction can also 
+additionally utilize the LocalServer offline capabilities of Google Gears, 
+if available, allowing the application to be loaded, started and 
+run without any network connection.
+
+The RDBMS in this deployment scenario is a client-side,
+browser-local RDBMS.  Junction will automatically use Google Gears
+RDBMS facilities, if installed and available.  Or, Junction will 
+default to using a simple memory-only, non-persistent RDBMS 
+that should be treated like a local data cache.
+
+The server-side in this deployment scenario may be very simple --
+conceptually just a server that publishes the static resources, 
+MVC code, and libraries that comprise the application.  The RDBMS,
+after all, is in the client.  The Junction web application server
+does, however, also provide for useful application code updating 
+and schema migration services in this client-heavy deployment scenario.  
+This scenario, too, provides a good story for server-side scalability, 
+because the server is doing very little work.
+
+However, the preeminent issue with this deployment scenario is 
+that _the user's data is not shared_.  Even with Google Gears RDBMS 
+installed in the user's web browser to allow for persistent data, 
+any data created by a user is kept only on their own computer.  
+Some folks might see this as a feature beneficial to their privacy.  
+Indeed, an interesting set of personal productivity or other 
+applications might be amenable to this client-side, unshared-data 
+deployment scenario (e.g., a personal financial asset tracker; 
+a personal todo-list manager).  
+
+Many other applications or business use cases, though, require users to 
+share data (e.g., team productivity applications).  While the client-side,
+unshared-data scenario might be interesting as a first step
+in a menu of application service-level plans (e.g., 
+Personal Edition, $5/month), especially since it consumes
+so few server resources, eventually providing for team shared data
+is required (e.g., Basic Team Edition, $20/month/user).
+
+The next deployment scenario provides a solution to allowing for 
+offline clients, responsive UI's and for shared team data...
+
+Run Your Junction Application In Both Client-Side And-Server Side:
+
+> client-side:                            server-side:
+> +-----------------------------------+   +------------+
+> | web browser                       |   | web app    |
+> |                                   |   | server     |
+> |                      B.           |   |            | +---------+
+> |                      request =======> | Controller | |  I.     |
+> |                                   |   |    Model <====> RDBMS  |
+> |                      response <====== | View      /\ |         |
+> |                                   |   +--------++-|| +---------+
+> |                                   |            || ||
+> |             +~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~+            || ||
+> |  A.         '  +------+ +-------+ |<=(code sync)+ ||
+> |  request ====> | C    | | II.   | |               ||
+> |             '  |  M <===> RDBMS |<=-=(data sync)=-=+
+> |  response <=== | V    | |       | |
+> |             '  +------+ +-------+ |
+> |             '   junctionClient    |
+> +-------------+---------------------+
+
+In this runtime scenario, the (same) application codebase is deployed 
+to both the web application server and to the web browser client.
+
+However, the 'source of truth' for data is the server-side RDBMS (I.),
+which may hold large datasets of records.  The client-side RDBMS (II.), 
+in contrast, is treated as a local cached subset of records.
+
+The application normally serves requests off the local, client-side
+RDBMS cache as much as possible, going through the fast in-browser, 
+mini-web-app-server Model-View-Controller processing cycle (A.).  
+
+As the user creates, deletes and updates records in 
+his or her local RDBMS cache, Junction also automatically provides
+record-level data synchronization (data sync) between the local
+RDBMS cache and the server-side RDBMS, with the Junction web application
+server handling the synchronization messages on the server side.
+
+The local RDBMS cache can even have records created/updated/deleted
+while the user was offline, eventually synchronizing data when
+the client restores network connectivity.  To support these offline
+operations, Junction tracks changes in the client-side 
+RDBMS with special tracking columns and tables that Junction 
+adds to the database schema.
+
+The server-side web application server can also service
+regular HTML page requests and AJAX requests (B.), such as in
+the case where the user wants to query or search the entire
+server-side dataset.  For example, in a wiki application, the user might 
+have only a small subset of pages cached in her local RDBMS (so she
+can read and edit those pages while on her train commute).  However,
+when connected, she wants to query the full wiki dataset for more
+pages.  Those queries can be serviced by the web application server.
+
+A two-phased enhancement of the previous wiki example is possible.
+To handle a user query or search, the local RDBMS is first quickly 
+queried and an initial results page is immediately displayed to the 
+user (A.).  Since the local RDBMS cache query results might be 
+incomplete, the application can call an API to also invoke an asynchronous
+Ajax request (B.) to the server, which is processed if the network is online.  
+When a larger result set later arrives from the web application server, 
+it can be interleaved into the search results page that had until 
+now had only local RDBMS cache query results.  The end effect 
+is a striking increase in perceived application
+responsiveness.
+
+In this dual client-side and server-side deployment scenario,
+the Junction system also automatically detects when the client-side
+application codebase and database schema is outdated, and update and
+migrate accordingly (code sync, in the diagram above).  
+Since the Junction system supports a Ruby-on-Rails-like database 
+schema migration facility, even if the client-side system
+has been offline for a long time, updates and migrations are easy
+to take care of.
+

@@ -1,0 +1,68 @@
+<html>
+ <head>
+  <META HTTP-EQUIV="Pragma" CONTENT="no-cache">
+  <META HTTP-EQUIV="Expires" CONTENT="-1">
+  <title>TrimPath template_test</title>
+  <script language="javascript" src="../jsunit/app/jsUnitCore.js"></script>
+  <script language="javascript" src="template.js"></script>
+ </head>
+ <body>
+  <script language="javascript" src="template_test.js"></script>
+
+  <!-- =================================================================== -->
+  <div id="div1">Coming soon...</div>
+  <script language="javascript">
+    // DOM/DHTML/UI related tests go here.
+    var el_div1 = document.getElementById("div1");
+    el_div1.innerHTML = "hello ${a} world.".process({ a: "brave new" });
+    el_div1.innerHTML += " <br/> " + "hello ${a|capitalize} world.".process({ a: "brave new" });
+  </script>
+
+  <!-- =================================================================== -->
+  <textarea style="display:none" id="test1_jst">
+    Hello ${customer.first} ${customer.last}.<br/>
+    Your shopping cart has ${products.length} item(s):
+    <table>
+     <tr><td>Name</td>
+         <td>Description</td>
+         <td>Price</td>
+         <td>Quantity & Alert</td>
+         </tr>
+     {for p in products}
+         <tr><td>${p.name|capitalize}</td><td>${p.desc}</td>
+             <td>$${p.price}</td><td>${p.quantity} : ${p.alert|default:""|capitalize}</td>
+             </tr>
+     {forelse}
+         <tr><td colspan="4">No products in your cart.</tr>
+     {/for}
+    </table>
+    {if customer.level == "gold"}
+      We love you!  Please check out our Gold Customer specials!
+    {else}
+      Become a Gold Customer by buying more stuff here.
+    {/if}
+  </textarea>
+  <div id="out1">Coming soon...</div>
+  <div id="out2">Coming soon...</div>
+  <script language="javascript">
+    var data = {
+        products : [ { name: "mac", desc: "computer",     
+                       price: 1000, quantity: 100, alert:null },
+                     { name: "ipod", desc: "music player", 
+                       price:  200, quantity: 200, alert:"on sale now!" },
+                     { name: "cinema display", desc: "screen",       
+                       price:  800, quantity: 300, alert:"best deal!" } ],
+        customer : { first: "John", last: "Public", level: "gold" }
+    };
+    var t;
+    t = TrimPath.parseDOMTemplate("test1_jst");
+    document.getElementById("out1").innerHTML = t.process(data);
+
+    var data2 = {
+        products : [],
+        customer : { first: "John", last: "Public", level: "gold" }
+    };
+    document.getElementById("out2").innerHTML = t.process(data2);
+  </script>
+ </body>
+</html>
