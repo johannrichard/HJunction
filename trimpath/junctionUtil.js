@@ -941,24 +941,38 @@ if (typeof(TrimPath) == 'undefined')
                     }
                 },
                 transact : function(fn) {
-                    if (txDepth <= 0)
-                        conn.execute('begin');
-                    txDepth = txDepth + 1;
-                    try {
-                        fn();
-
-                        if (readOnly == true) {
-                            conn.execute('rollback');
-                        }
-                    } catch (e) {
-                        if (txDepth > 0)
-                            conn.execute('rollback');
-                        txDepth = 0;
-                        throw e;
-                    }
-                    txDepth = Math.max(0, txDepth - 1);
-                    if (txDepth <= 0)
-                        conn.execute('commit');
+                	switch(dbObj.getInfo().type) {
+                		case 'html5':
+                			console.debug('html5');
+                			// conn.transaction(fn());
+                		case 'titanium':
+                			console.debug('titanium');
+                			// No transactions so far
+                			fn();
+                			break;
+                		case 'sqlite3':
+                			console.debug('sqlite3');                		
+                		default:
+                			console.debug('default');                		
+		                    if (txDepth <= 0)
+		                        conn.execute('begin');
+		                    txDepth = txDepth + 1;
+		                    try {
+		                        fn();
+		
+		                        if (readOnly == true) {
+		                            conn.execute('rollback');
+		                        }
+		                    } catch (e) {
+		                        if (txDepth > 0)
+		                            conn.execute('rollback');
+		                        txDepth = 0;
+		                        throw e;
+		                    }
+		                    txDepth = Math.max(0, txDepth - 1);
+		                    if (txDepth <= 0)
+		                        conn.execute('commit');
+                	}
                 },
                 execute : function(sql, sqlParams) { 
                     return conn.executeToRecords(sql, sqlParams);
@@ -991,6 +1005,8 @@ if (typeof(TrimPath) == 'undefined')
                     var colQVals = [];
                     var colVals  = [];
 
+					console.debug('Columns: ' + colInfos);
+					console.debug('Record: ' + rec );
                     for (var colName in colInfos) {
                         colNames.push(colName);
                         colQVals.push('?');

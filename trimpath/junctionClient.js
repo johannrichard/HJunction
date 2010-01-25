@@ -749,27 +749,31 @@ if (typeof(TrimPath) == 'undefined')
                         el.appendChild(doc.createTextNode(elementText));
                     }
                 },
-                hasTitaniumDb : function() {
-                    return (Titanium != null && 
-                            Titanium.Database != null);
+                hasNativeStorage : function() {
+                	return (openDatabase != null);	
                 },
-                createTitaniumDb : function(spaceKey, userKey, appKey) {
-                    if (env.hasTitaniumDb() == false)
+                createNativeDb : function(spaceKey, userKey, appKey) {
+                    if (env.hasNativeStorage() == false) {
+                    	console.debug('Native Storage not available');
                         return null;
-
+                    }
                     try { 
                         var dbName = [ (spaceKey || 'space'), (userKey || 'user'), (appKey || 'app') ].join('-');
 
-                        var db = Titanium.Database.install(dbName + '.db', dbName);
+                        var db = openDatabase(dbName,  '1.0', dbName, 1000000);
 
                         var executeSql = function(sql, args) {
                             console.debug('SQL: ' + sql + '; ' + (args || ''));
 
                             try {
                                 if (args != null)
-                                    return db.execute(sql, args);
+                                    return db.transaction(function(tx) {
+                                    		tx.executeSql(sql, args);
+	                                    });
                                 else
-                                    return db.execute(sql);
+                                    return db.transaction(function(tx) {
+                                    		tx.executeSql(sql);
+                                    	});
                             } catch (e) {
                                 // e is not a real error, so we can't just let it bubble up -- it won't 
                                 // display in error uis correctly. So we basically convert it to a real 
@@ -815,15 +819,104 @@ if (typeof(TrimPath) == 'undefined')
                             recordChanged : function(tableName, id, op) {
                                 executeSql('INSERT OR REPLACE INTO changes_' + tableName + 
                                              ' (id, op) VALUES (?, ?)', [ id, op ]);
+                            },
+                            transaction : function(fn) {
+                            	db.transaction(function(){
+                            		fn();
+                            	});
+                            }
+                        }
+
+                        return junctionUtil.createDbObj(conn, 
+                            { name     : 'native', 
+                              type     : 'html5', 
+                              persists : true }, 
+                            true);
+                    } catch (e) {
+                    	console.error('Exception: ' + e);
+                    }
+                    return null;
+                },                
+                hasTitanium : function() {
+                    return (Titanium != null && 
+                            Titanium.Database != null);
+                },
+                createTitaniumDb : function(spaceKey, userKey, appKey) {
+                    if (env.hasTitanium() == false) {
+                    	console.debug('Titanium not available');
+                        return null;
+                    }
+                    try { 
+                        var dbName = [ (spaceKey || 'space'), (userKey || 'user'), (appKey || 'app') ].join('-');
+
+                        console.debug('DB: ' + dbName);
+                        var db = Titanium.Database.open(dbName);
+
+                        var executeSql = function(sql, args) {
+                            console.debug('SQL: ' + sql + '; ' + (args || ''));
+
+                            try {
+                                if (args != null)
+                                    return db.execute(sql, [args]);
+                                else
+                                    return db.execute(sql);
+                            } catch (e) {
+                                // e is not a real error, so we can't just let it bubble up -- it won't 
+                                // display in error uis correctly. So we basically convert it to a real 
+                                // error.
+                                throw new Error("Error executing SQL: " + sql + ". Error was: " + e.message);
+                            }
+                        }
+
+                        var conn = {
+                            execute : function(sql, args) {
+                                var rs = executeSql(sql, args);
+                                if (rs != null)
+                                    rs.close();
+                            },                       
+                            executeToRecords : function(sql, args) {
+                                var rv = [];
+                                var rs = executeSql(sql, args);
+                                try {
+                                	// console.debug('Rows returned: ' + rs.rowCount);
+                                    if (rs != null && 
+                                        rs.isValidRow() && rs.rowCount != 0) {
+                                        // console.debug('Columns returned: ' + rs.getFieldCount());
+                                        var cols = rs.getFieldCount();
+                                        var colNames = [];
+                                        for (var i = 0; i < cols; i++)
+                                            colNames.push(rs.getFieldName(i));
+    
+                                        while (rs.isValidRow()) {
+                                            var r = {};
+                                            for (var i = 0; i < cols; i++)
+                                                r[colNames[i]] = rs.field(i);
+    
+                                            rv.push(r);
+                                            rs.next();
+                                        }
+                                    }
+                                } catch (e) {
+                                    throw e;
+                                } finally {
+                                    if (rs != null)
+                                        rs.close();
+                                }
+                                return rv;
+                            },
+                            recordChanged : function(tableName, id, op) {
+                                executeSql('INSERT OR REPLACE INTO changes_' + tableName + 
+                                             ' (id, op) VALUES (?, ?)', [ id, op ]);
                             }
                         }
 
                         return junctionUtil.createDbObj(conn, 
                             { name     : 'titanium', 
-                              type     : 'sqlite3', 
+                              type     : 'titanium', 
                               persists : true }, 
                             true);
                     } catch (e) {
+                    	console.error('Exception: ' + e);
                     }
                     return null;
                 },
